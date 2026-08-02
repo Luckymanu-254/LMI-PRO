@@ -256,4 +256,547 @@ D1/H4/H1 should calculate:
 - LH + LL = Bearish
 
 Next:
-Develop Multi-Timeframe Structure Engine v2.
+Develop Multi-Timeframe Structure Engine v2
+# LMI PRO v1.4.1 — Smart Analysis Documentation
+
+## Version Overview
+
+Version:
+LMI PRO v1.4.1
+
+Phase:
+Market Structure Intelligence Enhancement
+
+Based on:
+LMI PRO v1.3 Flexible MTF Engine
+
+Status:
+Stable Development Build
+
+
+---
+
+# Purpose
+
+LMI PRO v1.4.1 improves the existing market structure engine by adding intelligent market interpretation.
+
+The goal is to move from simple trend identification into understanding:
+
+- Market direction
+- Multi-timeframe agreement
+- Trend strength
+- Market alignment
+
+
+---
+
+# Core Engine (Inherited from v1.0)
+
+## Market Structure Detection
+
+The indicator identifies:
+
+- HH — Higher High
+- HL — Higher Low
+- LH — Lower High
+- LL — Lower Low
+
+
+## Structure Logic
+
+Bullish Structure:
+
+HH + HL
+
+Meaning:
+
+- Buyers are creating higher prices
+- Market structure is rising
+
+
+Bearish Structure:
+
+LH + LL
+
+Meaning:
+
+- Sellers are creating lower prices
+- Market structure is declining
+
+
+---
+
+# Bias Engine
+
+The indicator converts structure into directional bias.
+
+## Bullish Bias
+
+Condition:
+
+HH + HL
+
+Output:
+
+BULLISH
+
+
+## Bearish Bias
+
+Condition:
+
+LH + LL
+
+Output:
+
+BEARISH
+
+
+## Neutral
+
+When structure is unclear:
+
+NEUTRAL
+
+
+---
+
+# Multi-Timeframe Analysis
+
+## Flexible Timeframe System
+
+Users can select:
+
+### Higher Timeframe
+
+Example:
+
+- Weekly
+- Daily
+
+
+### Middle Timeframe
+
+Example:
+
+- Daily
+- H4
+
+
+### Entry Timeframe
+
+Example:
+
+- H4
+- H1
+- M15
+
+
+---
+
+# Timeframe Trend Reading
+
+Each selected timeframe compares:
+
+Current candle close
+
+against
+
+Current candle open
+
+
+Output:
+
+BULLISH
+
+or
+
+BEARISH
+
+
+---
+
+# Market Picture
+
+The indicator compares the selected timeframes.
+
+## Full Alignment
+
+Example:
+
+Higher:
+BULLISH
+
+Middle:
+BULLISH
+
+Entry:
+BULLISH
+
+
+Meaning:
+
+All selected timeframes agree.
+
+
+---
+
+## Correction
+
+Example:
+
+Higher:
+BEARISH
+
+Middle:
+BEARISH
+
+Entry:
+BULLISH
+
+
+Meaning:
+
+Lower timeframe is moving against the main trend.
+
+Possible pullback/correction.
+
+
+---
+
+## Mixed Market
+
+Example:
+
+Higher:
+BULLISH
+
+Middle:
+BEARISH
+
+Entry:
+BULLISH
+
+
+Meaning:
+
+Market lacks clear agreement.
+
+
+---
+
+# Trend Strength Meter
+
+Added in v1.4.1.
+
+The system calculates alignment between:
+
+- Higher timeframe
+- Middle timeframe
+- Entry timeframe
+- Current bias
+
+
+Maximum score:
+
+3/3
+
+
+---
+
+## Strength Levels
+
+
+### Strong
+
+Score:
+
+3/3
+
+
+Meaning:
+
+All timeframes support the current bias.
+
+
+---
+
+### Moderate
+
+Score:
+
+2/3
+
+
+Meaning:
+
+Most timeframes agree.
+
+
+---
+
+### Weak
+
+Score:
+
+1/3
+
+
+Meaning:
+
+Limited confirmation.
+
+
+---
+
+### No Confirmation
+
+Score:
+
+0/3
+
+
+Meaning:
+
+Market lacks directional support.
+
+
+---
+
+# Dashboard Information
+
+The dashboard displays:
+
+
+## Bias
+
+Current market direction.
+
+Examples:
+
+BULLISH
+
+BEARISH
+
+
+---
+
+## Structure
+
+Current swing structure.
+
+Examples:
+
+HH + HL
+
+LH + LL
+
+
+---
+
+## State
+
+Market condition.
+
+Examples:
+
+UPTREND
+
+DOWNTREND
+
+
+---
+
+## Higher TF
+
+Selected higher timeframe direction.
+
+
+---
+
+## Middle TF
+
+Selected middle timeframe direction.
+
+
+---
+
+## Entry TF
+
+Selected entry timeframe direction.
+
+
+---
+
+## Market
+
+Overall market picture.
+
+Examples:
+
+FULL ALIGNMENT
+
+CORRECTION
+
+MIXED
+
+
+---
+
+## Strength
+
+Trend strength level.
+
+Examples:
+
+STRONG
+
+MODERATE
+
+WEAK
+
+
+---
+
+# Trading Interpretation Examples
+
+
+## Strong Trend
+
+Example:
+
+Higher TF:
+BULLISH
+
+Middle TF:
+BULLISH
+
+Entry TF:
+BULLISH
+
+
+Structure:
+
+HH + HL
+
+
+Interpretation:
+
+Trend continuation environment.
+
+
+---
+
+## Pullback Situation
+
+Example:
+
+Higher TF:
+BEARISH
+
+Middle TF:
+BEARISH
+
+Entry TF:
+BULLISH
+
+
+Structure:
+
+Temporary bullish movement.
+
+
+Interpretation:
+
+Possible correction inside bearish trend.
+
+
+---
+
+# Testing Procedure
+
+Recommended markets:
+
+- Forex
+- Indices
+- Synthetic indices
+- Gold
+
+
+Testing timeframes:
+
+- H1
+- H4
+- Daily
+
+
+Record:
+
+- Timeframe settings
+- Market picture
+- Strength score
+- Structure
+- Price reaction
+
+
+---
+
+# Known Limitations
+
+Current version does not include:
+
+- Liquidity detection
+- Order blocks
+- Institutional zones
+- Volume analysis
+- Divergence
+- Risk management
+- AI assistant
+
+
+These features belong to future roadmap versions.
+
+
+---
+
+# Roadmap Position
+
+Completed:
+
+✅ LMI PRO v1.0 Market Structure
+
+✅ LMI PRO v1.1 Stable Engine
+
+✅ LMI PRO v1.2 MTF Picture
+
+✅ LMI PRO v1.3 Flexible MTF
+
+✅ LMI PRO v1.4.1 Smart Analysis
+
+
+Next:
+
+LMI PRO v2.0 Liquidity Engine
+
+
+---
+
+# Development Philosophy
+
+LMI PRO is built progressively:
+
+Structure
+↓
+Liquidity
+↓
+Institutional Zones
+↓
+Volume & Divergence
+↓
+Multi-Timeframe Intelligence
+↓
+Professional Dashboard
+↓
+Risk Management
+↓
+AI Assistant
