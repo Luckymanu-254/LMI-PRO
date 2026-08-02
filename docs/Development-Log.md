@@ -60,3 +60,29 @@ Observations:
 
 Next Improvement:
 Add market structure bias engine
+## Market Bias Engine
+
+Status:
+In Development
+
+Goal:
+Convert market structure labels into a clear market direction.
+
+Planned Features:
+- Bullish bias detection
+- Bearish bias detection
+- Neutral market detection
+- Structure-based reasoning
+
+Logic:
+Bullish:
+HH + HL
+
+Bearish:
+LH + LL
+
+Neutral:
+Mixed structure
+
+Next:
+Implement Pine Script market bias logic
