@@ -186,3 +186,50 @@ Detects short-term pullbacks.
 
 Next:
 Develop Dual Structure Engine.
+## Multi-Timeframe Intelligence Engine Plan
+
+Status:
+Planned
+
+Observation:
+Different timeframes can show different market directions.
+
+Example:
+Daily: Bearish
+H4: Bullish
+H1: Bullish
+
+Interpretation:
+Lower timeframe bullish movement can be a correction inside a higher timeframe bearish trend.
+
+New Feature:
+Create a Multi-Timeframe Intelligence Dashboard.
+
+Purpose:
+Combine multiple timeframe structures to show the complete market picture.
+
+Planned Timeframes:
+
+Higher Timeframe:
+- Daily / Weekly
+- Determines main market direction
+
+Current Trend Timeframe:
+- H4 / H1
+- Shows current market movement
+
+Lower Timeframe:
+- M15 / M5
+- Shows entry timing and short-term changes
+
+Dashboard Information:
+
+- Higher timeframe direction
+- Current timeframe direction
+- Lower timeframe movement
+- Trend agreement
+- Correction detection
+- Overall market condition
+
+Goal:
+Make LMI PRO understand market context instead of only showing a single bullish or bearish signal.
