@@ -1,0 +1,258 @@
+//@version=6
+indicator("LMI PRO v1.3 Flexible MTF Engine", overlay=true, max_labels_count=500)
+
+
+//==============================
+// SETTINGS
+//==============================
+
+sensitivity = input.int(5, "Swing Sensitivity", minval=2, maxval=20)
+
+showLabels = input.bool(true, "Show Structure Labels")
+
+
+//==============================
+// FLEXIBLE TIMEFRAME SETTINGS
+//==============================
+
+higherTF = input.timeframe("D", "Higher Timeframe")
+
+middleTF = input.timeframe("240", "Middle Timeframe")
+
+entryTF = input.timeframe("60", "Entry Timeframe")
+
+
+//==============================
+// CURRENT CHART STRUCTURE
+//==============================
+
+swingHigh = ta.pivothigh(high, sensitivity, sensitivity)
+
+swingLow = ta.pivotlow(low, sensitivity, sensitivity)
+
+
+
+var float previousHigh = na
+var float previousLow = na
+
+
+var string lastHighType = "NONE"
+var string lastLowType = "NONE"
+
+
+var string bias = "NEUTRAL"
+var string marketState = "WAITING"
+
+
+var float lastHL = na
+var float lastLH = na
+
+
+
+//==============================
+// HIGH STRUCTURE
+//==============================
+
+if not na(swingHigh)
+
+    highType = na(previousHigh) ? "SH" : swingHigh > previousHigh ? "HH" : "LH"
+
+    lastHighType := highType
+
+
+    if highType == "LH"
+        lastLH := swingHigh
+
+
+    if showLabels
+
+        label.new(
+         bar_index - sensitivity,
+         swingHigh,
+         highType,
+         style=label.style_label_down,
+         color=highType=="HH" ? color.green : color.red,
+         textcolor=color.white)
+
+
+    previousHigh := swingHigh
+
+
+
+//==============================
+// LOW STRUCTURE
+//==============================
+
+if not na(swingLow)
+
+    lowType = na(previousLow) ? "SL" : swingLow > previousLow ? "HL" : "LL"
+
+    lastLowType := lowType
+
+
+    if lowType == "HL"
+        lastHL := swingLow
+
+
+    if showLabels
+
+        label.new(
+         bar_index - sensitivity,
+         swingLow,
+         lowType,
+         style=label.style_label_up,
+         color=lowType=="HL" ? color.green : color.red,
+         textcolor=color.white)
+
+
+    previousLow := swingLow
+
+
+
+//==============================
+// BIAS ENGINE
+//==============================
+
+if lastHighType=="HH" and lastLowType=="HL"
+
+    bias := "BULLISH"
+    marketState := "UPTREND"
+
+
+
+if lastHighType=="LH" and lastLowType=="LL"
+
+    bias := "BEARISH"
+    marketState := "DOWNTREND"
+    //==============================
+// MULTI TIMEFRAME DATA
+//==============================
+
+higherClose = request.security(syminfo.tickerid, higherTF, close)
+higherOpen  = request.security(syminfo.tickerid, higherTF, open)
+
+middleClose = request.security(syminfo.tickerid, middleTF, close)
+middleOpen  = request.security(syminfo.tickerid, middleTF, open)
+
+entryClose = request.security(syminfo.tickerid, entryTF, close)
+entryOpen  = request.security(syminfo.tickerid, entryTF, open)
+
+
+
+//==============================
+// TIMEFRAME TREND
+//==============================
+
+higherTrend = higherClose > higherOpen ? "BULLISH" : "BEARISH"
+
+middleTrend = middleClose > middleOpen ? "BULLISH" : "BEARISH"
+
+entryTrend = entryClose > entryOpen ? "BULLISH" : "BEARISH"
+
+
+
+//==============================
+// MARKET PICTURE
+//==============================
+
+marketPicture = ""
+
+
+if higherTrend == middleTrend and middleTrend == entryTrend
+
+    marketPicture := "FULL ALIGNMENT"
+
+
+else if higherTrend != entryTrend
+
+    marketPicture := "CORRECTION / PULLBACK"
+
+
+else
+
+    marketPicture := "MIXED"
+
+
+
+
+//==============================
+// DASHBOARD
+//==============================
+
+var table dashboard = table.new(position.top_right,2,10,border_width=1)
+
+
+
+if barstate.islast
+
+
+    table.cell(dashboard,0,0,"LMI PRO v1.3",bgcolor=color.black,text_color=color.white)
+
+    table.cell(dashboard,1,0,"MTF ENGINE",bgcolor=color.black,text_color=color.white)
+
+
+
+    table.cell(dashboard,0,1,"BIAS",bgcolor=color.gray,text_color=color.white)
+
+    table.cell(dashboard,1,1,bias,
+     bgcolor=bias=="BULLISH"?color.green:bias=="BEARISH"?color.red:color.orange,
+     text_color=color.white)
+
+
+
+    table.cell(dashboard,0,2,"STRUCTURE",bgcolor=color.gray,text_color=color.white)
+
+    table.cell(dashboard,1,2,lastHighType+" + "+lastLowType,
+     bgcolor=color.black,text_color=color.white)
+
+
+
+    table.cell(dashboard,0,3,"STATE",bgcolor=color.gray,text_color=color.white)
+
+    table.cell(dashboard,1,3,marketState,
+     bgcolor=color.black,text_color=color.white)
+
+
+
+    table.cell(dashboard,0,4,"HIGHER TF",bgcolor=color.gray,text_color=color.white)
+
+    table.cell(dashboard,1,4,higherTrend,
+     bgcolor=higherTrend=="BULLISH"?color.green:color.red,
+     text_color=color.white)
+
+
+
+    table.cell(dashboard,0,5,"MIDDLE TF",bgcolor=color.gray,text_color=color.white)
+
+    table.cell(dashboard,1,5,middleTrend,
+     bgcolor=middleTrend=="BULLISH"?color.green:color.red,
+     text_color=color.white)
+
+
+
+    table.cell(dashboard,0,6,"ENTRY TF",bgcolor=color.gray,text_color=color.white)
+
+    table.cell(dashboard,1,6,entryTrend,
+     bgcolor=entryTrend=="BULLISH"?color.green:color.red,
+     text_color=color.white)
+
+
+
+    table.cell(dashboard,0,7,"MARKET",bgcolor=color.gray,text_color=color.white)
+
+    table.cell(dashboard,1,7,marketPicture,
+     bgcolor=color.black,text_color=color.white)
+
+
+
+    table.cell(dashboard,0,8,"LAST HL",bgcolor=color.gray,text_color=color.white)
+
+    table.cell(dashboard,1,8,str.tostring(lastHL),
+     bgcolor=color.black,text_color=color.white)
+
+
+
+    table.cell(dashboard,0,9,"LAST LH",bgcolor=color.gray,text_color=color.white)
+
+    table.cell(dashboard,1,9,str.tostring(lastLH),
+     bgcolor=color.black,text_color=color.white)
