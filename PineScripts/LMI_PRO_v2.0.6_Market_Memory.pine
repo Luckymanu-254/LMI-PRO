@@ -1,0 +1,124 @@
+//@version=6
+indicator("LMI PRO v2.0.6 Market Memory Foundation", overlay=true, max_labels_count=500)
+
+//==============================
+// SETTINGS
+//==============================
+sensitivity = input.int(5, "Swing Sensitivity", minval=2, maxval=20)
+showStructure = input.bool(true, "Show Structure")
+showMemoryLabels = input.bool(true, "Show Memory Events")
+showDashboard = input.bool(true, "Show Dashboard")
+
+// Liquidity settings
+equalTolerance = input.float(0.10, "Equal High/Low Tolerance %", step=0.01)
+minimumMove = input.float(0.50, "Minimum Swing Strength %", step=0.05)
+
+//==============================
+// SWING ENGINE
+//==============================
+swingHigh = ta.pivothigh(high, sensitivity, sensitivity)
+swingLow = ta.pivotlow(low, sensitivity, sensitivity)
+
+//==============================
+// MEMORY STORAGE
+//==============================
+var string lastEvent = "NONE"
+var int eventCount = 0
+var string marketBias = "NEUTRAL"
+var float previousHigh = na
+var float previousLow = na
+var string highStructure = "NONE"
+var string lowStructure = "NONE"
+var float buyLiquidity = na
+var float sellLiquidity = na
+
+//==============================
+// MEMORY FUNCTION
+//==============================
+recordEvent(event) =>
+    event
+
+//==============================
+// STRUCTURE MEMORY
+//==============================
+if not na(swingHigh)
+    highStructure := na(previousHigh) ? "SH" : swingHigh > previousHigh ? "HH" : "LH"
+    previousHigh := swingHigh
+
+if not na(swingLow)
+    lowStructure := na(previousLow) ? "SL" : swingLow > previousLow ? "HL" : "LL"
+    previousLow := swingLow
+
+//==============================
+// BIAS MEMORY
+//==============================
+if highStructure == "HH" and lowStructure == "HL"
+    marketBias := "BULLISH"
+
+if highStructure == "LH" and lowStructure == "LL"
+    marketBias := "BEARISH"
+
+//==============================
+// LIQUIDITY DETECTION MEMORY
+//==============================
+if not na(swingHigh)
+    if not na(previousHigh)
+        highDistance = math.abs(swingHigh - previousHigh) / previousHigh * 100
+        if highDistance <= equalTolerance
+            buyLiquidity := swingHigh
+            lastEvent := "BUY LIQUIDITY CREATED"
+            eventCount += 1
+            if showMemoryLabels
+                label.new(bar_index - sensitivity, swingHigh, "MEMORY:\nBUY LIQUIDITY", style=label.style_label_down, color=color.orange, textcolor=color.white)
+
+if not na(swingLow)
+    if not na(previousLow)
+        lowDistance = math.abs(swingLow - previousLow) / previousLow * 100
+        if lowDistance <= equalTolerance
+            sellLiquidity := swingLow
+            lastEvent := "SELL LIQUIDITY CREATED"
+            eventCount += 1
+            if showMemoryLabels
+                label.new(bar_index - sensitivity, swingLow, "MEMORY:\nSELL LIQUIDITY", style=label.style_label_up, color=color.orange, textcolor=color.white)
+
+//==============================
+// LIQUIDITY SWEEP MEMORY
+//==============================
+if not na(buyLiquidity)
+    buySweep = high > buyLiquidity and close < buyLiquidity
+    if buySweep
+        lastEvent := "BUY LIQUIDITY SWEPT"
+        eventCount += 1
+        if showMemoryLabels
+            label.new(bar_index, high, "MEMORY:\nBUY SWEPT", style=label.style_label_down, color=color.red, textcolor=color.white)
+
+if not na(sellLiquidity)
+    sellSweep = low < sellLiquidity and close > sellLiquidity
+    if sellSweep
+        lastEvent := "SELL LIQUIDITY SWEPT"
+        eventCount += 1
+        if showMemoryLabels
+            label.new(bar_index, low, "MEMORY:\nSELL SWEPT", style=label.style_label_up, color=color.green, textcolor=color.white)
+
+//==============================
+// MEMORY DASHBOARD
+//==============================
+var table dashboard = table.new(position.top_right, 2, 8, border_width=1)
+
+if barstate.islast and showDashboard
+    table.cell(dashboard, 0, 0, "LMI PRO v2.0.6", bgcolor=color.black, text_color=color.white)
+    table.cell(dashboard, 1, 0, "MARKET MEMORY", bgcolor=color.black, text_color=color.white)
+    table.cell(dashboard, 0, 1, "BIAS", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 1, marketBias, bgcolor=marketBias == "BULLISH" ? color.green : marketBias == "BEARISH" ? color.red : color.orange, text_color=color.white)
+    table.cell(dashboard, 0, 2, "STRUCTURE", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 2, highStructure + " + " + lowStructure, bgcolor=color.black, text_color=color.white)
+    table.cell(dashboard, 0, 3, "LAST EVENT", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 3, lastEvent, bgcolor=color.black, text_color=color.white)
+    table.cell(dashboard, 0, 4, "EVENT COUNT", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 4, str.tostring(eventCount), bgcolor=color.black, text_color=color.white)
+    table.cell(dashboard, 0, 5, "MEMORY STATUS", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 5, "ACTIVE", bgcolor=color.green, text_color=color.white)
+    table.cell(dashboard, 0, 6, "MODULE", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 6, "LIQUIDITY MEMORY", bgcolor=color.black, text_color=color.white)
+    table.cell(dashboard, 0, 7, "VERSION", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 7, "v2.0.6", bgcolor=color.black, text_color=color.white)
