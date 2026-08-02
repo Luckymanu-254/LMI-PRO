@@ -164,3 +164,25 @@ Planned Solution:
 
 Next:
 Develop protected trend reversal engine
+## Protected Trend v3 Testing Observation
+
+Finding:
+The indicator changes bearish during a bullish market correction.
+
+Problem:
+Current logic detects short-term reversal but does not understand the higher-level trend.
+
+Required Improvement:
+Separate:
+- Major market trend
+- Internal market movement
+
+New Design:
+Main Trend Engine:
+Detects overall direction.
+
+Internal Structure Engine:
+Detects short-term pullbacks.
+
+Next:
+Develop Dual Structure Engine.
