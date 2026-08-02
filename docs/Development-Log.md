@@ -233,3 +233,27 @@ Dashboard Information:
 
 Goal:
 Make LMI PRO understand market context instead of only showing a single bullish or bearish signal.
+## Multi-Timeframe Engine v1 Testing Result
+
+Status:
+Needs Improvement
+
+Finding:
+MTF dashboard can show incorrect direction.
+
+Example:
+Volatility 75 H4 market was bearish, but indicator showed bullish.
+
+Cause:
+Engine is using candle direction (open vs close) instead of market structure.
+
+Required Improvement:
+Replace candle-based MTF bias with structure-based MTF bias.
+
+New Logic:
+D1/H4/H1 should calculate:
+- HH + HL = Bullish
+- LH + LL = Bearish
+
+Next:
+Develop Multi-Timeframe Structure Engine v2.
