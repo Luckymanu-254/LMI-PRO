@@ -1,0 +1,12 @@
+//@version=6
+indicator("LUCKYMANU MARKET INTELLIGENCE PRO v1.0", overlay=true)
+
+// LMI PRO Core Test
+
+var table dashboard = table.new(position.top_right, 2, 2)
+
+if barstate.islast
+    table.cell(dashboard, 0, 0, "LMI PRO")
+    table.cell(dashboard, 1, 0, "v1.0")
+    table.cell(dashboard, 0, 1, "Status")
+    table.cell(dashboard, 1, 1, "CORE ONLINE")
