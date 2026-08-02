@@ -145,3 +145,22 @@ Improvements:
 
 Next:
 Implement memory-based bias logic in Pine Script
+## Market Bias Engine v2 Testing Observation
+
+Issue Found:
+
+On higher timeframes, small reversals can temporarily create bearish signals before a true trend reversal.
+
+Problem:
+The engine reacts to minor LH/LL movements.
+
+Required Improvement:
+Add major structure protection.
+
+Planned Solution:
+- Separate minor and major structure
+- Require key structure break before changing bias
+- Add BOS/CHoCH confirmation logic
+
+Next:
+Develop protected trend reversal engine
