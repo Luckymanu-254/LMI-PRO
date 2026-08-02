@@ -128,3 +128,20 @@ Create memory-based structure sequence detection.
 
 Next:
 Upgrade Market Bias Engine to remember HH+HL and LH+LL sequences.
+## Market Bias Engine v2 Plan
+
+Status:
+In Development
+
+Objective:
+Improve market direction detection using structure sequences.
+
+Improvements:
+- Remember confirmed swing events
+- Detect HH + HL sequence
+- Detect LH + LL sequence
+- Maintain bias until structure changes
+- Reduce unnecessary Neutral readings
+
+Next:
+Implement memory-based bias logic in Pine Script
