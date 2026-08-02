@@ -1,12 +1,46 @@
 //@version=6
-indicator("LUCKYMANU MARKET INTELLIGENCE PRO v1.0", overlay=true)
+indicator("LUCKYMANU MARKET INTELLIGENCE PRO v1.0", overlay=true, max_labels_count=500)
 
-// LMI PRO Core Test
+// ==============================
+// SETTINGS
+// ==============================
+sensitivity = input.int(5, "Swing Sensitivity", minval=2, maxval=20)
+showSwings = input.bool(true, "Show Swing Labels")
 
+// ==============================
+// SWING DETECTION
+// ==============================
+swingHigh = ta.pivothigh(high, sensitivity, sensitivity)
+swingLow = ta.pivotlow(low, sensitivity, sensitivity)
+
+// ==============================
+// DRAW LABELS
+// ==============================
+if showSwings and not na(swingHigh)
+    label.new(
+         bar_index - sensitivity,
+         swingHigh,
+         "SH",
+         style=label.style_label_down,
+         color=color.red,
+         textcolor=color.white)
+
+if showSwings and not na(swingLow)
+    label.new(
+         bar_index - sensitivity,
+         swingLow,
+         "SL",
+         style=label.style_label_up,
+         color=color.green,
+         textcolor=color.white)
+
+// ==============================
+// DASHBOARD
+// ==============================
 var table dashboard = table.new(position.top_right, 2, 2)
 
 if barstate.islast
     table.cell(dashboard, 0, 0, "LMI PRO")
     table.cell(dashboard, 1, 0, "v1.0")
-    table.cell(dashboard, 0, 1, "Status")
-    table.cell(dashboard, 1, 1, "CORE ONLINE")
+    table.cell(dashboard, 0, 1, "Engine")
+    table.cell(dashboard, 1, 1, "Swing Detection")
