@@ -1,0 +1,1063 @@
+//@version=6
+indicator(
+     "LMI PRO v3.3 Dynamic Session Intelligence",
+     overlay=true,
+     max_labels_count=500,
+     max_boxes_count=200,
+     max_lines_count=100)
+
+
+//================================================
+// SETTINGS
+//================================================
+
+sensitivity = input.int(
+     5,
+     "Swing Sensitivity",
+     minval=2,
+     maxval=20)
+
+equalTolerance = input.float(
+     0.10,
+     "Equal High/Low Tolerance %",
+     step=0.01)
+
+atrLength = input.int(
+     14,
+     "ATR Length",
+     minval=1)
+
+higherTF = input.timeframe(
+     "240",
+     "Higher Timeframe Bias")
+
+showStructure = input.bool(
+     true,
+     "Show Structure")
+
+showLiquidity = input.bool(
+     true,
+     "Show Liquidity Events")
+
+showDashboard = input.bool(
+     true,
+     "Show Dashboard")
+
+
+//================================================
+// MARKET DATA
+//================================================
+
+swingHigh = ta.pivothigh(
+     high,
+     sensitivity,
+     sensitivity)
+
+swingLow = ta.pivotlow(
+     low,
+     sensitivity,
+     sensitivity)
+
+atr = ta.atr(atrLength)
+
+
+//================================================
+// MEMORY STORAGE
+//================================================
+
+var float previousHigh = na
+var float previousLow = na
+
+var float buyLiquidity = na
+var float sellLiquidity = na
+
+var string highStructure = "NONE"
+var string lowStructure = "NONE"
+
+var string marketBias = "NEUTRAL"
+
+var string lastEvent = "NONE"
+
+
+//================================================
+// STRUCTURE ENGINE MEMORY
+//================================================
+
+var bool bullishBOS = false
+var bool bearishBOS = false
+
+var bool bullishCHoCH = false
+var bool bearishCHoCH = false
+
+var string structureEvent = "NONE"
+
+var string trendStrength = "NEUTRAL"
+
+
+//================================================
+// RESET EVENTS
+//================================================
+
+bullishBOS := false
+bearishBOS := false
+
+bullishCHoCH := false
+bearishCHoCH := false
+
+structureEvent := "NONE"
+
+
+//================================================
+// SWING HIGH STRUCTURE
+//================================================
+
+if not na(swingHigh)
+
+    highStructure :=
+         na(previousHigh) ?
+         "SH" :
+         swingHigh > previousHigh ?
+         "HH" :
+         "LH"
+
+
+    if showStructure
+
+        label.new(
+             bar_index - sensitivity,
+             swingHigh,
+             highStructure,
+             style=label.style_label_down,
+             color=
+                  highStructure == "HH" ?
+                  color.green :
+                  color.red,
+             textcolor=color.white)
+
+
+    if not na(previousHigh)
+
+        highDistance =
+             math.abs(swingHigh - previousHigh)
+             /
+             previousHigh
+             *
+             100
+
+
+        if highDistance <= equalTolerance
+
+            buyLiquidity := swingHigh
+
+            lastEvent := "BUY LIQUIDITY CREATED"
+
+
+            if showLiquidity
+
+                label.new(
+                     bar_index - sensitivity,
+                     swingHigh,
+                     "BUY LIQUIDITY",
+                     style=label.style_label_down,
+                     color=color.orange,
+                     textcolor=color.white)
+
+
+    previousHigh := swingHigh
+
+
+//================================================
+// SWING LOW STRUCTURE
+//================================================
+
+if not na(swingLow)
+
+    lowStructure :=
+         na(previousLow) ?
+         "SL" :
+         swingLow > previousLow ?
+         "HL" :
+         "LL"
+
+
+    if showStructure
+
+        label.new(
+             bar_index - sensitivity,
+             swingLow,
+             lowStructure,
+             style=label.style_label_up,
+             color=
+                  lowStructure == "HL" ?
+                  color.green :
+                  color.red,
+             textcolor=color.white)
+
+
+    if not na(previousLow)
+
+        lowDistance =
+             math.abs(swingLow - previousLow)
+             /
+             previousLow
+             *
+             100
+
+
+        if lowDistance <= equalTolerance
+
+            sellLiquidity := swingLow
+
+            lastEvent := "SELL LIQUIDITY CREATED"
+
+
+            if showLiquidity
+
+                label.new(
+                     bar_index - sensitivity,
+                     swingLow,
+                     "SELL LIQUIDITY",
+                     style=label.style_label_up,
+                     color=color.orange,
+                     textcolor=color.white)
+
+
+    previousLow := swingLow
+
+
+//================================================
+// BREAK OF STRUCTURE
+//================================================
+
+bullishBOS :=
+     not na(previousHigh)
+     and close > previousHigh
+
+
+bearishBOS :=
+     not na(previousLow)
+     and close < previousLow
+
+
+
+if bullishBOS
+
+    structureEvent := "BULLISH BOS"
+
+    lastEvent := "BULLISH BOS"
+
+
+    label.new(
+         bar_index,
+         high,
+         "BOS ↑",
+         style=label.style_label_down,
+         color=color.green,
+         textcolor=color.white)
+
+
+
+if bearishBOS
+
+    structureEvent := "BEARISH BOS"
+
+    lastEvent := "BEARISH BOS"
+
+
+    label.new(
+         bar_index,
+         low,
+         "BOS ↓",
+         style=label.style_label_up,
+         color=color.red,
+         textcolor=color.white)
+
+
+//================================================
+// MARKET BIAS
+//================================================
+
+if highStructure == "HH" and lowStructure == "HL"
+
+    marketBias := "BULLISH"
+
+else if highStructure == "LH" and lowStructure == "LL"
+
+    marketBias := "BEARISH"
+
+else
+
+    marketBias := "NEUTRAL"
+
+
+//================================================
+// CHoCH
+//================================================
+
+bullishCHoCH :=
+     marketBias == "BEARISH"
+     and bullishBOS
+
+
+bearishCHoCH :=
+     marketBias == "BULLISH"
+     and bearishBOS
+
+
+
+if bullishCHoCH
+
+    structureEvent := "BULLISH CHoCH"
+
+    lastEvent := "BULLISH CHoCH"
+
+
+
+if bearishCHoCH
+
+    structureEvent := "BEARISH CHoCH"
+
+    lastEvent := "BEARISH CHoCH"
+
+
+//================================================
+// TREND STRENGTH
+//================================================
+
+trendStrength :=
+     bullishBOS ?
+     "STRONG BULLISH" :
+     bearishBOS ?
+     "STRONG BEARISH" :
+     marketBias == "BULLISH" ?
+     "BULLISH" :
+     marketBias == "BEARISH" ?
+     "BEARISH" :
+     "NEUTRAL"
+     //================================================
+// PART B
+// INSTITUTIONAL ENGINE
+//================================================
+
+
+//================================================
+// SETTINGS
+//================================================
+
+displacementFactor = input.float(
+     1.5,
+     "Major Displacement Strength",
+     minval=0.1,
+     step=0.1)
+
+
+fvgMinSize = input.float(
+     0.25,
+     "Minimum FVG Size ATR",
+     minval=0.05,
+     step=0.05)
+
+
+obLookback = input.int(
+     10,
+     "Order Block Search Bars",
+     minval=1,
+     maxval=50)
+
+
+zoneExtensionBars = input.int(
+     40,
+     "Zone Extension Bars",
+     minval=5,
+     maxval=200)
+
+
+vpLookback = input.int(
+     150,
+     "Volume Profile Lookback",
+     minval=20,
+     maxval=500)
+
+
+showOrderBlocks = input.bool(
+     true,
+     "Show Order Blocks")
+
+
+showFVG = input.bool(
+     true,
+     "Show Fair Value Gaps")
+
+
+//================================================
+// LIQUIDITY SWEEP ENGINE
+//================================================
+
+if not na(buyLiquidity)
+
+    if high > buyLiquidity and close < buyLiquidity
+
+        lastEvent := "BUY LIQUIDITY SWEPT"
+
+
+        if showLiquidity
+
+            label.new(
+                 bar_index,
+                 high,
+                 "BUY SWEEP",
+                 style=label.style_label_down,
+                 color=color.red,
+                 textcolor=color.white)
+
+
+
+if not na(sellLiquidity)
+
+    if low < sellLiquidity and close > sellLiquidity
+
+        lastEvent := "SELL LIQUIDITY SWEPT"
+
+
+        if showLiquidity
+
+            label.new(
+                 bar_index,
+                 low,
+                 "SELL SWEEP",
+                 style=label.style_label_up,
+                 color=color.green,
+                 textcolor=color.white)
+
+
+//================================================
+// DISPLACEMENT ENGINE
+//================================================
+
+bullishDisplacement =
+     close > open
+     and close > high[1]
+     and (high-low) > atr * displacementFactor
+
+
+bearishDisplacement =
+     close < open
+     and close < low[1]
+     and (high-low) > atr * displacementFactor
+
+
+
+majorBullishZone =
+     bullishDisplacement
+     and not na(previousHigh)
+     and close > previousHigh
+
+
+
+majorBearishZone =
+     bearishDisplacement
+     and not na(previousLow)
+     and close < previousLow
+
+
+
+//================================================
+// ORDER BLOCK STORAGE
+//================================================
+
+var float bullishOBTop = na
+var float bullishOBBottom = na
+
+var float bearishOBTop = na
+var float bearishOBBottom = na
+
+
+
+//================================================
+// BULLISH ORDER BLOCK
+//================================================
+
+if majorBullishZone and showOrderBlocks
+
+    int bullishOffset = na
+
+
+    for i = 1 to obLookback
+
+        if na(bullishOffset) and close[i] < open[i]
+
+            bullishOffset := i
+
+
+
+    if not na(bullishOffset)
+
+        bullishOBTop := open[bullishOffset]
+
+        bullishOBBottom := low[bullishOffset]
+
+
+        box.new(
+             left=bar_index-bullishOffset,
+             top=bullishOBTop,
+             right=bar_index+zoneExtensionBars,
+             bottom=bullishOBBottom,
+             bgcolor=color.new(color.green,85),
+             border_color=color.green,
+             text="BULLISH OB")
+
+
+        lastEvent := "BULLISH ORDER BLOCK"
+
+
+
+//================================================
+// BEARISH ORDER BLOCK
+//================================================
+
+if majorBearishZone and showOrderBlocks
+
+    int bearishOffset = na
+
+
+    for i = 1 to obLookback
+
+        if na(bearishOffset) and close[i] > open[i]
+
+            bearishOffset := i
+
+
+
+    if not na(bearishOffset)
+
+        bearishOBTop := high[bearishOffset]
+
+        bearishOBBottom := open[bearishOffset]
+
+
+        box.new(
+             left=bar_index-bearishOffset,
+             top=bearishOBTop,
+             right=bar_index+zoneExtensionBars,
+             bottom=bearishOBBottom,
+             bgcolor=color.new(color.red,85),
+             border_color=color.red,
+             text="BEARISH OB")
+
+
+        lastEvent := "BEARISH ORDER BLOCK"
+
+
+
+//================================================
+// FAIR VALUE GAP ENGINE
+//================================================
+
+bullishFVG =
+     bar_index >= 2
+     and low > high[2]
+     and (low-high[2]) >= atr * fvgMinSize
+
+
+
+bearishFVG =
+     bar_index >= 2
+     and high < low[2]
+     and (low[2]-high) >= atr * fvgMinSize
+
+
+
+var string bullishFVGStatus = "NONE"
+var string bearishFVGStatus = "NONE"
+
+
+
+if bullishFVG and showFVG
+
+    box.new(
+         left=bar_index-2,
+         top=low,
+         right=bar_index+zoneExtensionBars,
+         bottom=high[2],
+         bgcolor=color.new(color.blue,88),
+         border_color=color.blue,
+         text="BULLISH FVG")
+
+
+    bullishFVGStatus := "ACTIVE"
+
+    lastEvent := "BULLISH FVG CREATED"
+
+
+
+if bearishFVG and showFVG
+
+    box.new(
+         left=bar_index-2,
+         top=low[2],
+         right=bar_index+zoneExtensionBars,
+         bottom=high,
+         bgcolor=color.new(color.purple,88),
+         border_color=color.purple,
+         text="BEARISH FVG")
+
+
+    bearishFVGStatus := "ACTIVE"
+
+    lastEvent := "BEARISH FVG CREATED"
+
+
+
+//================================================
+// PREMIUM / DISCOUNT LOCATION
+//================================================
+
+profileHigh = ta.highest(
+     high,
+     vpLookback)
+
+
+profileLow = ta.lowest(
+     low,
+     vpLookback)
+
+
+profilePOC = (profileHigh + profileLow) / 2
+
+
+
+priceLocation =
+     close > profilePOC ?
+     "PREMIUM" :
+     "DISCOUNT"
+     //================================================
+// PART C
+// INTELLIGENCE + DECISION ENGINE
+//================================================
+
+
+//================================================
+// HIGHER TIMEFRAME BIAS
+//================================================
+
+htfClose = request.security(
+     syminfo.tickerid,
+     higherTF,
+     close)
+
+
+htfMA = request.security(
+     syminfo.tickerid,
+     higherTF,
+     ta.sma(close,50))
+
+
+var string htfBias = "NEUTRAL"
+
+
+if htfClose > htfMA
+
+    htfBias := "BULLISH"
+
+else if htfClose < htfMA
+
+    htfBias := "BEARISH"
+
+else
+
+    htfBias := "NEUTRAL"
+
+
+
+//================================================
+// DYNAMIC SESSION ENGINE v3.3
+// USER TIMEZONE ADAPTATION
+//================================================
+
+sessionTimezone = input.string(
+     "Etc/UTC",
+     "Session Timezone")
+
+
+sessionHour = hour(
+     time,
+     sessionTimezone)
+
+
+var string marketSession = "OFF HOURS"
+
+
+
+if sessionHour >= 0 and sessionHour < 8
+
+    marketSession := "ASIAN"
+
+
+else if sessionHour >= 8 and sessionHour < 13
+
+    marketSession := "LONDON"
+
+
+else if sessionHour >= 13 and sessionHour < 21
+
+    marketSession := "NEW YORK"
+
+
+else
+
+    marketSession := "OFF HOURS"
+
+
+
+//================================================
+// INSTITUTIONAL SCORE ENGINE
+//================================================
+
+var int institutionalScore = 0
+
+
+institutionalScore := 0
+
+
+
+if bullishBOS or bearishBOS
+
+    institutionalScore += 20
+
+
+
+if bullishCHoCH or bearishCHoCH
+
+    institutionalScore += 20
+
+
+
+if not na(bullishOBTop) or not na(bearishOBTop)
+
+    institutionalScore += 15
+
+
+
+if bullishFVGStatus == "ACTIVE" or bearishFVGStatus == "ACTIVE"
+
+    institutionalScore += 15
+
+
+
+if lastEvent == "BUY LIQUIDITY SWEPT" or lastEvent == "SELL LIQUIDITY SWEPT"
+
+    institutionalScore += 15
+
+
+
+if marketBias == htfBias
+
+    institutionalScore += 15
+
+
+
+//================================================
+// TRADE READINESS ENGINE
+//================================================
+
+var string tradeStatus = "WAIT"
+
+
+
+if institutionalScore >= 70 and marketBias == "BULLISH"
+
+    tradeStatus := "BUY READY"
+
+
+else if institutionalScore >= 70 and marketBias == "BEARISH"
+
+    tradeStatus := "SELL READY"
+
+
+else
+
+    tradeStatus := "WAIT"
+
+
+
+//================================================
+// DASHBOARD
+//================================================
+
+var table dashboard = table.new(
+     position.top_right,
+     2,
+     14,
+     bgcolor=color.new(color.black,0),
+     frame_color=color.gray,
+     frame_width=1,
+     border_width=1)
+
+
+
+if barstate.islast and showDashboard
+
+
+    table.cell(
+         dashboard,
+         0,
+         0,
+         "LMI PRO v3.3",
+         bgcolor=color.black,
+         text_color=color.white)
+
+
+    table.cell(
+         dashboard,
+         1,
+         0,
+         "SESSION INTELLIGENCE",
+         bgcolor=color.black,
+         text_color=color.white)
+
+
+
+    table.cell(
+         dashboard,
+         0,
+         1,
+         "BIAS",
+         bgcolor=color.gray,
+         text_color=color.white)
+
+
+    table.cell(
+         dashboard,
+         1,
+         1,
+         marketBias,
+         bgcolor=color.black,
+         text_color=color.white)
+
+
+
+    table.cell(
+         dashboard,
+         0,
+         2,
+         "STRUCTURE",
+         bgcolor=color.gray,
+         text_color=color.white)
+
+
+    table.cell(
+         dashboard,
+         1,
+         2,
+         highStructure+" + "+lowStructure,
+         bgcolor=color.black,
+         text_color=color.white)
+
+
+
+    table.cell(
+         dashboard,
+         0,
+         3,
+         "EVENT",
+         bgcolor=color.gray,
+         text_color=color.white)
+
+
+    table.cell(
+         dashboard,
+         1,
+         3,
+         structureEvent,
+         bgcolor=color.black,
+         text_color=color.white)
+
+
+
+    table.cell(
+         dashboard,
+         0,
+         4,
+         "TREND POWER",
+         bgcolor=color.gray,
+         text_color=color.white)
+
+
+    table.cell(
+         dashboard,
+         1,
+         4,
+         trendStrength,
+         bgcolor=color.black,
+         text_color=color.white)
+
+
+
+    table.cell(
+         dashboard,
+         0,
+         5,
+         "HTF BIAS",
+         bgcolor=color.gray,
+         text_color=color.white)
+
+
+    table.cell(
+         dashboard,
+         1,
+         5,
+         htfBias,
+         bgcolor=color.black,
+         text_color=color.white)
+
+
+
+    table.cell(
+         dashboard,
+         0,
+         6,
+         "SESSION",
+         bgcolor=color.gray,
+         text_color=color.white)
+
+
+    table.cell(
+         dashboard,
+         1,
+         6,
+         marketSession,
+         bgcolor=color.black,
+         text_color=color.white)
+
+
+
+    table.cell(
+         dashboard,
+         0,
+         7,
+         "INSTITUTION SCORE",
+         bgcolor=color.gray,
+         text_color=color.white)
+
+
+    table.cell(
+         dashboard,
+         1,
+         7,
+         str.tostring(institutionalScore)+"/100",
+         bgcolor=color.black,
+         text_color=color.white)
+
+
+
+    table.cell(
+         dashboard,
+         0,
+         8,
+         "TRADE STATUS",
+         bgcolor=color.gray,
+         text_color=color.white)
+
+
+    table.cell(
+         dashboard,
+         1,
+         8,
+         tradeStatus,
+         bgcolor=color.black,
+         text_color=color.white)
+
+
+
+    table.cell(
+         dashboard,
+         0,
+         9,
+         "LOCATION",
+         bgcolor=color.gray,
+         text_color=color.white)
+
+
+    table.cell(
+         dashboard,
+         1,
+         9,
+         priceLocation,
+         bgcolor=color.black,
+         text_color=color.white)
+
+
+
+    table.cell(
+         dashboard,
+         0,
+         10,
+         "BULLISH OB",
+         bgcolor=color.gray,
+         text_color=color.white)
+
+
+    table.cell(
+         dashboard,
+         1,
+         10,
+         na(bullishOBTop) ? "NONE" : "ACTIVE",
+         bgcolor=color.black,
+         text_color=color.white)
+
+
+
+    table.cell(
+         dashboard,
+         0,
+         11,
+         "BEARISH OB",
+         bgcolor=color.gray,
+         text_color=color.white)
+
+
+    table.cell(
+         dashboard,
+         1,
+         11,
+         na(bearishOBTop) ? "NONE" : "ACTIVE",
+         bgcolor=color.black,
+         text_color=color.white)
+
+
+
+    table.cell(
+         dashboard,
+         0,
+         12,
+         "LAST EVENT",
+         bgcolor=color.gray,
+         text_color=color.white)
+
+
+    table.cell(
+         dashboard,
+         1,
+         12,
+         lastEvent,
+         bgcolor=color.black,
+         text_color=color.white)
+
+
+
+    table.cell(
+         dashboard,
+         0,
+         13,
+         "VERSION",
+         bgcolor=color.gray,
+         text_color=color.white)
+
+
+    table.cell(
+         dashboard,
+         1,
+         13,
+         "v3.3",
+         bgcolor=color.black,
+         text_color=color.white)
