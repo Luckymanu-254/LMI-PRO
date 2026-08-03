@@ -1,0 +1,440 @@
+//@version=6
+indicator("LMI PRO v3.0.3 Estimated Volume Profile", overlay=true, max_labels_count=500, max_boxes_count=100, max_lines_count=100)
+
+//==============================
+// SETTINGS
+//==============================
+sensitivity        = input.int(5, "Swing Sensitivity", minval=2, maxval=20)
+equalTolerance     = input.float(0.10, "Equal High/Low Tolerance %", step=0.01)
+atrLength          = input.int(14, "ATR Length", minval=1)
+displacementFactor = input.float(1.50, "Major Displacement Strength (ATR)", minval=0.1, step=0.1)
+fvgMinSize         = input.float(0.25, "Minimum FVG Size (ATR)", minval=0.05, step=0.05)
+obLookback         = input.int(10, "Order Block Search Bars", minval=1, maxval=50)
+zoneExtensionBars  = input.int(40, "Order Block / FVG Length", minval=5, maxval=200)
+
+vpLookback = input.int(150, "Volume Profile Lookback Bars", minval=20, maxval=500)
+vpRows     = input.int(24, "Volume Profile Price Levels", minval=8, maxval=60)
+valueAreaPercent = input.float(70.0, "Value Area Volume %", minval=50.0, maxval=95.0, step=1.0)
+
+showStructure     = input.bool(true, "Show Structure")
+showLiquidity     = input.bool(true, "Show Liquidity Events")
+showOrderBlocks   = input.bool(true, "Show Major Order Blocks")
+showFVG           = input.bool(true, "Show Fair Value Gaps")
+showVolumeProfile = input.bool(true, "Show Estimated Volume Profile")
+showDashboard     = input.bool(true, "Show Dashboard")
+
+//==============================
+// SWING & MEMORY STORAGE
+//==============================
+swingHigh = ta.pivothigh(high, sensitivity, sensitivity)
+swingLow = ta.pivotlow(low, sensitivity, sensitivity)
+atr = ta.atr(atrLength)
+
+var float previousHigh = na
+var float previousLow = na
+var float buyLiquidity = na
+var float sellLiquidity = na
+
+var string highStructure = "NONE"
+var string lowStructure = "NONE"
+var string marketBias = "NEUTRAL"
+var string lastEvent = "NONE"
+
+var float bullishOBTop = na
+var float bullishOBBottom = na
+var float bearishOBTop = na
+var float bearishOBBottom = na
+
+var string bullishFVGStatus = "NONE"
+var string bearishFVGStatus = "NONE"
+
+var array<float> volumeBins = array.new_float(vpRows, 0.0)
+
+var box premiumBox = na
+var box discountBox = na
+var box valueAreaBox = na
+
+var line pocLine = na
+var line vahLine = na
+var line valLine = na
+
+var float profilePOC = na
+var float profileVAH = na
+var float profileVAL = na
+
+//==============================
+// MARKET STRUCTURE + LIQUIDITY
+//==============================
+if not na(swingHigh)
+    highStructure := na(previousHigh) ? "SH" : swingHigh > previousHigh ? "HH" : "LH"
+
+    if showStructure
+        label.new(
+             bar_index - sensitivity,
+             swingHigh,
+             highStructure,
+             style=label.style_label_down,
+             color=highStructure == "HH" ? color.green : color.red,
+             textcolor=color.white)
+
+    if not na(previousHigh)
+        highDistance = math.abs(swingHigh - previousHigh) / previousHigh * 100
+
+        if highDistance <= equalTolerance
+            buyLiquidity := swingHigh
+            lastEvent := "BUY LIQUIDITY CREATED"
+
+            if showLiquidity
+                label.new(
+                     bar_index - sensitivity,
+                     swingHigh,
+                     "BUY LIQUIDITY",
+                     style=label.style_label_down,
+                     color=color.orange,
+                     textcolor=color.white)
+
+    previousHigh := swingHigh
+
+if not na(swingLow)
+    lowStructure := na(previousLow) ? "SL" : swingLow > previousLow ? "HL" : "LL"
+
+    if showStructure
+        label.new(
+             bar_index - sensitivity,
+             swingLow,
+             lowStructure,
+             style=label.style_label_up,
+             color=lowStructure == "HL" ? color.green : color.red,
+             textcolor=color.white)
+
+    if not na(previousLow)
+        lowDistance = math.abs(swingLow - previousLow) / previousLow * 100
+
+        if lowDistance <= equalTolerance
+            sellLiquidity := swingLow
+            lastEvent := "SELL LIQUIDITY CREATED"
+
+            if showLiquidity
+                label.new(
+                     bar_index - sensitivity,
+                     swingLow,
+                     "SELL LIQUIDITY",
+                     style=label.style_label_up,
+                     color=color.orange,
+                     textcolor=color.white)
+
+    previousLow := swingLow
+
+if highStructure == "HH" and lowStructure == "HL"
+    marketBias := "BULLISH"
+else if highStructure == "LH" and lowStructure == "LL"
+    marketBias := "BEARISH"
+
+//==============================
+// LIQUIDITY SWEEPS
+//==============================
+if not na(buyLiquidity) and high > buyLiquidity and close < buyLiquidity
+    lastEvent := "BUY LIQUIDITY SWEPT"
+
+    if showLiquidity
+        label.new(
+             bar_index,
+             high,
+             "BUY SWEEP",
+             style=label.style_label_down,
+             color=color.red,
+             textcolor=color.white)
+
+if not na(sellLiquidity) and low < sellLiquidity and close > sellLiquidity
+    lastEvent := "SELL LIQUIDITY SWEPT"
+
+    if showLiquidity
+        label.new(
+             bar_index,
+             low,
+             "SELL SWEEP",
+             style=label.style_label_up,
+             color=color.green,
+             textcolor=color.white)
+
+//==============================
+// MAJOR DISPLACEMENT DETECTION
+//==============================
+bullishDisplacement = close > open and close > high[1] and (high - low) > atr * displacementFactor
+bearishDisplacement = close < open and close < low[1] and (high - low) > atr * displacementFactor
+
+majorBullishZone = bullishDisplacement and not na(previousHigh) and close > previousHigh
+majorBearishZone = bearishDisplacement and not na(previousLow) and close < previousLow
+
+//==============================
+// BULLISH ORDER BLOCK
+//==============================
+if majorBullishZone and showOrderBlocks
+    int bullishOffset = na
+
+    for i = 1 to obLookback
+        if na(bullishOffset) and close[i] < open[i]
+            bullishOffset := i
+
+    if not na(bullishOffset)
+        bullishOBTop := open[bullishOffset]
+        bullishOBBottom := low[bullishOffset]
+
+        box.new(
+             left=bar_index - bullishOffset,
+             top=bullishOBTop,
+             right=bar_index + zoneExtensionBars,
+             bottom=bullishOBBottom,
+             bgcolor=color.new(color.green, 85),
+             border_color=color.green,
+             text="BULLISH OB",
+             text_size=size.small,
+             text_color=color.new(color.green, 70),
+             text_halign=text.align_center,
+             text_valign=text.align_center)
+
+        lastEvent := "MAJOR BULLISH ORDER BLOCK"
+
+//==============================
+// BEARISH ORDER BLOCK
+//==============================
+if majorBearishZone and showOrderBlocks
+    int bearishOffset = na
+
+    for i = 1 to obLookback
+        if na(bearishOffset) and close[i] > open[i]
+            bearishOffset := i
+
+    if not na(bearishOffset)
+        bearishOBTop := high[bearishOffset]
+        bearishOBBottom := open[bearishOffset]
+
+        box.new(
+             left=bar_index - bearishOffset,
+             top=bearishOBTop,
+             right=bar_index + zoneExtensionBars,
+             bottom=bearishOBBottom,
+             bgcolor=color.new(color.red, 85),
+             border_color=color.red,
+             text="BEARISH OB",
+             text_size=size.small,
+             text_color=color.new(color.red, 70),
+             text_halign=text.align_center,
+             text_valign=text.align_center)
+
+        lastEvent := "MAJOR BEARISH ORDER BLOCK"
+
+//==============================
+// FAIR VALUE GAP DETECTION
+//==============================
+bullishFVG = bar_index >= 2 and low > high[2] and (low - high[2]) >= atr * fvgMinSize
+bearishFVG = bar_index >= 2 and high < low[2] and (low[2] - high) >= atr * fvgMinSize
+
+if bullishFVG and showFVG
+    box.new(
+         left=bar_index - 2,
+         top=low,
+         right=bar_index + zoneExtensionBars,
+         bottom=high[2],
+         bgcolor=color.new(color.blue, 88),
+         border_color=color.blue,
+         text="BULLISH FVG",
+         text_size=size.small,
+         text_color=color.new(color.blue, 70),
+         text_halign=text.align_center,
+         text_valign=text.align_center)
+
+    bullishFVGStatus := "ACTIVE"
+    lastEvent := "BULLISH FVG CREATED"
+
+if bearishFVG and showFVG
+    box.new(
+         left=bar_index - 2,
+         top=low[2],
+         right=bar_index + zoneExtensionBars,
+         bottom=high,
+         bgcolor=color.new(color.purple, 88),
+         border_color=color.purple,
+         text="BEARISH FVG",
+         text_size=size.small,
+         text_color=color.new(color.purple, 70),
+         text_halign=text.align_center,
+         text_valign=text.align_center)
+
+    bearishFVGStatus := "ACTIVE"
+    lastEvent := "BEARISH FVG CREATED"
+
+//==============================
+// ESTIMATED VOLUME PROFILE
+//==============================
+profileHigh = ta.highest(high, vpLookback)
+profileLow = ta.lowest(low, vpLookback)
+profileRange = profileHigh - profileLow
+binSize = profileRange / vpRows
+
+if barstate.islast and showVolumeProfile and bar_index >= vpLookback - 1 and profileRange > 0
+    array.fill(volumeBins, 0.0)
+
+    for i = 0 to vpLookback - 1
+        typicalPrice = hlc3[i]
+        int binIndex = int(math.floor((typicalPrice - profileLow) / binSize))
+        binIndex := int(math.max(0, math.min(vpRows - 1, binIndex)))
+
+        currentVolume = array.get(volumeBins, binIndex)
+        array.set(volumeBins, binIndex, currentVolume + volume[i])
+
+    float totalVolume = 0.0
+    float highestVolume = 0.0
+    int pocBin = 0
+
+    for row = 0 to vpRows - 1
+        rowVolume = array.get(volumeBins, row)
+        totalVolume += rowVolume
+
+        if rowVolume > highestVolume
+            highestVolume := rowVolume
+            pocBin := row
+
+    float targetVolume = totalVolume * valueAreaPercent / 100.0
+    float accumulatedVolume = highestVolume
+
+    int upperBin = pocBin
+    int lowerBin = pocBin
+
+    for step = 1 to vpRows - 1
+        if accumulatedVolume < targetVolume
+            float volumeAbove = upperBin < vpRows - 1 ? array.get(volumeBins, upperBin + 1) : -1.0
+            float volumeBelow = lowerBin > 0 ? array.get(volumeBins, lowerBin - 1) : -1.0
+
+            if volumeAbove >= volumeBelow and upperBin < vpRows - 1
+                upperBin += 1
+                accumulatedVolume += volumeAbove
+            else if lowerBin > 0
+                lowerBin -= 1
+                accumulatedVolume += volumeBelow
+
+    profilePOC := profileLow + (pocBin + 0.5) * binSize
+    profileVAH := profileLow + (upperBin + 1) * binSize
+    profileVAL := profileLow + lowerBin * binSize
+
+    if not na(premiumBox)
+        box.delete(premiumBox)
+
+    if not na(discountBox)
+        box.delete(discountBox)
+
+    if not na(valueAreaBox)
+        box.delete(valueAreaBox)
+
+    if not na(pocLine)
+        line.delete(pocLine)
+
+    if not na(vahLine)
+        line.delete(vahLine)
+
+    if not na(valLine)
+        line.delete(valLine)
+
+    premiumBox := box.new(
+         left=bar_index - vpLookback + 1,
+         top=profileHigh,
+         right=bar_index,
+         bottom=profileVAH,
+         bgcolor=color.new(color.red, 94),
+         border_color=color.new(color.red, 85),
+         text="VOLUME PREMIUM",
+         text_size=size.small,
+         text_color=color.new(color.red, 78),
+         text_halign=text.align_center,
+         text_valign=text.align_center)
+
+    valueAreaBox := box.new(
+         left=bar_index - vpLookback + 1,
+         top=profileVAH,
+         right=bar_index,
+         bottom=profileVAL,
+         bgcolor=color.new(color.blue, 94),
+         border_color=color.new(color.blue, 85),
+         text="VALUE AREA",
+         text_size=size.small,
+         text_color=color.new(color.blue, 78),
+         text_halign=text.align_center,
+         text_valign=text.align_center)
+
+    discountBox := box.new(
+         left=bar_index - vpLookback + 1,
+         top=profileVAL,
+         right=bar_index,
+         bottom=profileLow,
+         bgcolor=color.new(color.green, 94),
+         border_color=color.new(color.green, 85),
+         text="VOLUME DISCOUNT",
+         text_size=size.small,
+         text_color=color.new(color.green, 78),
+         text_halign=text.align_center,
+         text_valign=text.align_center)
+
+    pocLine := line.new(
+         x1=bar_index - vpLookback + 1,
+         y1=profilePOC,
+         x2=bar_index,
+         y2=profilePOC,
+         color=color.orange,
+         width=2,
+         style=line.style_solid)
+
+    vahLine := line.new(
+         x1=bar_index - vpLookback + 1,
+         y1=profileVAH,
+         x2=bar_index,
+         y2=profileVAH,
+         color=color.blue,
+         width=1,
+         style=line.style_dashed)
+
+    valLine := line.new(
+         x1=bar_index - vpLookback + 1,
+         y1=profileVAL,
+         x2=bar_index,
+         y2=profileVAL,
+         color=color.blue,
+         width=1,
+         style=line.style_dashed)
+
+//==============================
+// DASHBOARD
+//==============================
+priceLocation = na(profilePOC) ? "CALCULATING" : close > profileVAH ? "PREMIUM" : close < profileVAL ? "DISCOUNT" : "VALUE AREA"
+
+var table dashboard = table.new(position.top_right, 2, 10, border_width=1)
+
+if barstate.islast and showDashboard
+    table.cell(dashboard, 0, 0, "LMI PRO v3.0.3", bgcolor=color.black, text_color=color.white)
+    table.cell(dashboard, 1, 0, "VOLUME INSTITUTIONAL ZONES", bgcolor=color.black, text_color=color.white)
+
+    table.cell(dashboard, 0, 1, "BIAS", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 1, marketBias, bgcolor=marketBias == "BULLISH" ? color.green : marketBias == "BEARISH" ? color.red : color.orange, text_color=color.white)
+
+    table.cell(dashboard, 0, 2, "STRUCTURE", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 2, highStructure + " + " + lowStructure, bgcolor=color.black, text_color=color.white)
+
+    table.cell(dashboard, 0, 3, "VOLUME AREA", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 3, priceLocation, bgcolor=priceLocation == "PREMIUM" ? color.red : priceLocation == "DISCOUNT" ? color.green : color.blue, text_color=color.white)
+
+    table.cell(dashboard, 0, 4, "POC", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 4, na(profilePOC) ? "N/A" : str.tostring(profilePOC, format.mintick), bgcolor=color.black, text_color=color.white)
+
+    table.cell(dashboard, 0, 5, "VALUE AREA", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 5, na(profileVAH) ? "N/A" : str.tostring(profileVAL, format.mintick) + " - " + str.tostring(profileVAH, format.mintick), bgcolor=color.black, text_color=color.white)
+
+    table.cell(dashboard, 0, 6, "BULLISH OB", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 6, na(bullishOBTop) ? "NONE" : "MAJOR ACTIVE", bgcolor=color.black, text_color=color.white)
+
+    table.cell(dashboard, 0, 7, "BEARISH OB", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 7, na(bearishOBTop) ? "NONE" : "MAJOR ACTIVE", bgcolor=color.black, text_color=color.white)
+
+    table.cell(dashboard, 0, 8, "LAST EVENT", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 8, lastEvent, bgcolor=color.black, text_color=color.white)
+
+    table.cell(dashboard, 0, 9, "VERSION", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 9, "v3.0.3", bgcolor=color.black, text_color=color.white)
