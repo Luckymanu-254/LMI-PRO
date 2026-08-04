@@ -1,0 +1,1747 @@
+//@version=6
+indicator(
+     "LMI PRO v4.1 AI Trade Decision Engine",
+     overlay = true,
+     max_labels_count = 300,
+     max_boxes_count = 100,
+     max_lines_count = 100)
+
+//================================================
+// PART A
+// CORE MARKET STRUCTURE ENGINE
+//================================================
+
+
+//================================================
+// GENERAL SETTINGS
+//================================================
+
+sensitivity = input.int(
+     5,
+     "Swing Sensitivity",
+     minval = 2,
+     maxval = 20)
+
+equalTolerance = input.float(
+     0.10,
+     "Equal High/Low Tolerance %",
+     step = 0.01)
+
+atrLength = input.int(
+     14,
+     "ATR Length",
+     minval = 1)
+
+higherTF = input.timeframe(
+     "240",
+     "Higher Timeframe Bias")
+
+
+//================================================
+// DISPLAY CONTROL
+//================================================
+
+showStructure = input.bool(
+     true,
+     "Show Market Structure")
+
+showLiquidity = input.bool(
+     true,
+     "Show Liquidity")
+
+
+//================================================
+// COLOR CONTROL
+//================================================
+
+bullColor = input.color(
+     color.green,
+     "Bullish Color")
+
+bearColor = input.color(
+     color.red,
+     "Bearish Color")
+
+neutralColor = input.color(
+     color.orange,
+     "Neutral Color")
+
+liquidityColor = input.color(
+     color.yellow,
+     "Liquidity Color")
+
+textColor = input.color(
+     color.white,
+     "Text Color")
+
+
+// Dashboard colors needed for Part E
+
+dashboardBG = input.color(
+     color.new(color.black, 85),
+     "Dashboard Background")
+
+dashboardHeader = input.color(
+     color.rgb(30, 30, 30),
+     "Dashboard Header")
+
+
+//================================================
+// MARKET DATA
+//================================================
+
+swingHigh = ta.pivothigh(
+     high,
+     sensitivity,
+     sensitivity)
+
+swingLow = ta.pivotlow(
+     low,
+     sensitivity,
+     sensitivity)
+
+atr = ta.atr(atrLength)
+
+
+//================================================
+// MEMORY STORAGE
+//================================================
+
+var float previousHigh = na
+var float previousLow = na
+
+var float buyLiquidity = na
+var float sellLiquidity = na
+
+
+var string highStructure = "NONE"
+var string lowStructure = "NONE"
+
+var string marketBias = "NEUTRAL"
+
+var string lastEvent = "NONE"
+
+
+//================================================
+// STRUCTURE EVENTS
+//================================================
+
+var bool bullishBOS = false
+var bool bearishBOS = false
+
+var bool bullishCHoCH = false
+var bool bearishCHoCH = false
+
+
+var string structureEvent = "NONE"
+
+var string trendStrength = "NEUTRAL"
+
+
+//================================================
+// RESET EVENTS EACH CANDLE
+//================================================
+
+bullishBOS := false
+bearishBOS := false
+
+bullishCHoCH := false
+bearishCHoCH := false
+
+structureEvent := "NONE"
+
+
+//================================================
+// SWING HIGH ANALYSIS
+//================================================
+
+if not na(swingHigh)
+
+    highStructure :=
+         na(previousHigh) ?
+         "SH" :
+         swingHigh > previousHigh ?
+         "HH" :
+         "LH"
+
+
+    if showStructure
+
+        label.new(
+             bar_index - sensitivity,
+             swingHigh,
+             highStructure,
+             style = label.style_label_down,
+             color = highStructure == "HH" ? bullColor : bearColor,
+             textcolor = textColor)
+
+
+    if not na(previousHigh)
+
+        highDistance =
+             previousHigh != 0 ?
+             math.abs(swingHigh - previousHigh) / previousHigh * 100 :
+             999.0
+
+
+        if highDistance <= equalTolerance
+
+            buyLiquidity := swingHigh
+
+            lastEvent := "BUY LIQUIDITY CREATED"
+
+
+            if showLiquidity
+
+                label.new(
+                     bar_index - sensitivity,
+                     swingHigh,
+                     "BUY LIQUIDITY",
+                     style = label.style_label_down,
+                     color = liquidityColor,
+                     textcolor = textColor)
+
+
+    previousHigh := swingHigh
+
+
+//================================================
+// SWING LOW ANALYSIS
+//================================================
+
+if not na(swingLow)
+
+    lowStructure :=
+         na(previousLow) ?
+         "SL" :
+         swingLow > previousLow ?
+         "HL" :
+         "LL"
+
+
+    if showStructure
+
+        label.new(
+             bar_index - sensitivity,
+             swingLow,
+             lowStructure,
+             style = label.style_label_up,
+             color = lowStructure == "HL" ? bullColor : bearColor,
+             textcolor = textColor)
+
+
+    if not na(previousLow)
+
+        lowDistance =
+             previousLow != 0 ?
+             math.abs(swingLow - previousLow) / previousLow * 100 :
+             999.0
+
+
+        if lowDistance <= equalTolerance
+
+            sellLiquidity := swingLow
+
+            lastEvent := "SELL LIQUIDITY CREATED"
+
+
+            if showLiquidity
+
+                label.new(
+                     bar_index - sensitivity,
+                     swingLow,
+                     "SELL LIQUIDITY",
+                     style = label.style_label_up,
+                     color = liquidityColor,
+                     textcolor = textColor)
+
+
+    previousLow := swingLow
+
+
+//================================================
+// BREAK OF STRUCTURE
+//================================================
+
+bullishBOS :=
+     not na(previousHigh)
+     and close > previousHigh
+
+
+bearishBOS :=
+     not na(previousLow)
+     and close < previousLow
+
+
+
+if bullishBOS
+
+    structureEvent := "BULLISH BOS"
+    lastEvent := structureEvent
+
+
+
+if bearishBOS
+
+    structureEvent := "BEARISH BOS"
+    lastEvent := structureEvent
+
+
+
+//================================================
+// MARKET BIAS
+//================================================
+
+if highStructure == "HH" and lowStructure == "HL"
+
+    marketBias := "BULLISH"
+
+else if highStructure == "LH" and lowStructure == "LL"
+
+    marketBias := "BEARISH"
+
+else
+
+    marketBias := "NEUTRAL"
+
+
+//================================================
+// CHoCH DETECTION
+//================================================
+
+bullishCHoCH :=
+     marketBias == "BEARISH"
+     and bullishBOS
+
+
+bearishCHoCH :=
+     marketBias == "BULLISH"
+     and bearishBOS
+
+
+
+if bullishCHoCH
+
+    structureEvent := "BULLISH CHoCH"
+    lastEvent := structureEvent
+
+
+
+if bearishCHoCH
+
+    structureEvent := "BEARISH CHoCH"
+    lastEvent := structureEvent
+
+
+
+//================================================
+// TREND STRENGTH
+//================================================
+
+trendStrength :=
+     bullishBOS ?
+     "STRONG BULLISH" :
+     bearishBOS ?
+     "STRONG BEARISH" :
+     marketBias == "BULLISH" ?
+     "BULLISH" :
+     marketBias == "BEARISH" ?
+     "BEARISH" :
+     "NEUTRAL"
+     //================================================
+// PART B
+// INSTITUTIONAL INTELLIGENCE ENGINE
+//================================================
+
+
+//================================================
+// SETTINGS
+//================================================
+
+displacementFactor = input.float(
+     1.5,
+     "Major Displacement Strength",
+     minval = 0.5,
+     step = 0.1)
+
+
+fvgMinSize = input.float(
+     0.25,
+     "Minimum FVG Size ATR",
+     minval = 0.05,
+     step = 0.05)
+
+
+obLookback = input.int(
+     10,
+     "Order Block Search Bars",
+     minval = 3,
+     maxval = 50)
+
+
+zoneExtensionBars = input.int(
+     20,
+     "Zone Extension",
+     minval = 5,
+     maxval = 100)
+
+
+maxZones = input.int(
+     10,
+     "Maximum Active Zones",
+     minval = 1,
+     maxval = 30)
+
+
+showOrderBlocks = input.bool(
+     true,
+     "Show Order Blocks")
+
+
+showFVG = input.bool(
+     true,
+     "Show Fair Value Gaps")
+
+
+//================================================
+// ZONE COLORS
+//================================================
+
+obBullColor = input.color(
+     color.new(color.green,85),
+     "Bullish OB Color")
+
+
+obBearColor = input.color(
+     color.new(color.red,85),
+     "Bearish OB Color")
+
+
+fvgBullColor = input.color(
+     color.new(color.blue,88),
+     "Bullish FVG Color")
+
+
+fvgBearColor = input.color(
+     color.new(color.purple,88),
+     "Bearish FVG Color")
+
+
+//================================================
+// LIQUIDITY SWEEP ENGINE
+//================================================
+
+var string liquidityEvent = "NONE"
+
+
+if not na(buyLiquidity)
+
+    if high > buyLiquidity and close < buyLiquidity
+
+        liquidityEvent := "BUY LIQUIDITY SWEPT"
+
+        lastEvent := liquidityEvent
+
+
+        if showLiquidity
+
+            label.new(
+                 bar_index,
+                 high,
+                 "BUY SWEEP",
+                 style = label.style_label_down,
+                 color = bearColor,
+                 textcolor = textColor)
+
+
+
+if not na(sellLiquidity)
+
+    if low < sellLiquidity and close > sellLiquidity
+
+        liquidityEvent := "SELL LIQUIDITY SWEPT"
+
+        lastEvent := liquidityEvent
+
+
+        if showLiquidity
+
+            label.new(
+                 bar_index,
+                 low,
+                 "SELL SWEEP",
+                 style = label.style_label_up,
+                 color = bullColor,
+                 textcolor = textColor)
+
+
+
+//================================================
+// DISPLACEMENT ENGINE
+//================================================
+
+bullishDisplacement =
+     close > open
+     and close > high[1]
+     and (high - low) > atr * displacementFactor
+
+
+bearishDisplacement =
+     close < open
+     and close < low[1]
+     and (high - low) > atr * displacementFactor
+
+
+
+majorBullishZone =
+     bullishDisplacement
+     and bullishBOS
+
+
+majorBearishZone =
+     bearishDisplacement
+     and bearishBOS
+
+
+
+//================================================
+// ORDER BLOCK MEMORY
+//================================================
+
+var float bullishOBTop = na
+var float bullishOBBottom = na
+
+var float bearishOBTop = na
+var float bearishOBBottom = na
+
+
+
+//================================================
+// BULLISH ORDER BLOCK
+//================================================
+if majorBullishZone and showOrderBlocks
+
+    int bullishOffset = na
+
+
+    for i = 1 to obLookback
+
+        if na(bullishOffset) and close[i] < open[i]
+
+            bullishOffset := i
+
+
+
+    if not na(bullishOffset)
+
+        bullishOBTop := open[bullishOffset]
+
+        bullishOBBottom := low[bullishOffset]
+
+
+        box.new(
+             left = bar_index - bullishOffset,
+             right = bar_index + zoneExtensionBars,
+             top = bullishOBTop,
+             bottom = bullishOBBottom,
+             bgcolor = obBullColor,
+             border_color = bullColor)
+
+
+        label.new(
+             bar_index - bullishOffset,
+             bullishOBTop,
+             "BULLISH ORDER BLOCK",
+             style = label.style_label_down,
+             color = bullColor,
+             textcolor = textColor)
+
+
+        lastEvent := "BULLISH ORDER BLOCK"
+
+//================================================
+// BEARISH ORDER BLOCK
+//================================================
+
+if majorBearishZone and showOrderBlocks
+
+    int bearishOffset = na
+
+
+    for i = 1 to obLookback
+
+        if na(bearishOffset) and close[i] > open[i]
+
+            bearishOffset := i
+
+
+
+    if not na(bearishOffset)
+
+        bearishOBTop := high[bearishOffset]
+
+        bearishOBBottom := open[bearishOffset]
+
+
+        box.new(
+             left = bar_index - bearishOffset,
+             right = bar_index + zoneExtensionBars,
+             top = bearishOBTop,
+             bottom = bearishOBBottom,
+             bgcolor = obBearColor,
+             border_color = bearColor)
+
+
+        lastEvent := "BEARISH ORDER BLOCK"
+
+//================================================
+// FAIR VALUE GAP ENGINE
+//================================================
+
+bullishFVG =
+     low > high[2]
+     and (low - high[2]) >= atr * fvgMinSize
+
+
+bearishFVG =
+     high < low[2]
+     and (low[2] - high) >= atr * fvgMinSize
+
+
+
+var string bullishFVGStatus = "NONE"
+
+var string bearishFVGStatus = "NONE"
+
+
+//================================================
+// BULLISH FVG
+//================================================
+
+if bullishFVG and showFVG
+
+    box.new(
+         left = bar_index - 2,
+         right = bar_index + zoneExtensionBars,
+         top = low,
+         bottom = high[2],
+         bgcolor = fvgBullColor,
+         border_color = bullColor)
+
+
+    label.new(
+         bar_index - 2,
+         low,
+         "BULLISH FVG",
+         style = label.style_label_up,
+         color = bullColor,
+         textcolor = textColor)
+
+
+    bullishFVGStatus := "ACTIVE"
+
+    lastEvent := "BULLISH FVG CREATED"
+
+
+//================================================
+// BEARISH FVG
+//================================================
+
+if bearishFVG and showFVG
+
+    box.new(
+         left = bar_index - 2,
+         right = bar_index + zoneExtensionBars,
+         top = low[2],
+         bottom = high,
+         bgcolor = fvgBearColor,
+         border_color = bearColor)
+
+
+    label.new(
+         bar_index - 2,
+         high,
+         "BEARISH FVG",
+         style = label.style_label_down,
+         color = bearColor,
+         textcolor = textColor)
+
+
+    bearishFVGStatus := "ACTIVE"
+
+    lastEvent := "BEARISH FVG CREATED"
+
+//================================================
+// PREMIUM / DISCOUNT ENGINE
+//================================================
+
+rangeLookback = input.int(
+     150,
+     "Market Range Lookback",
+     minval = 20)
+
+
+
+rangeHigh =
+     ta.highest(
+          high,
+          rangeLookback)
+
+
+rangeLow =
+     ta.lowest(
+          low,
+          rangeLookback)
+
+
+
+equilibrium =
+     (rangeHigh + rangeLow) / 2
+
+
+
+priceLocation =
+     close > equilibrium ?
+     "PREMIUM" :
+     "DISCOUNT"
+     //================================================
+// PART C
+// AI INTELLIGENCE & DECISION FOUNDATION
+//================================================
+
+
+//================================================
+// HIGHER TIMEFRAME ANALYSIS
+//================================================
+
+htfClose = request.security(
+     syminfo.tickerid,
+     higherTF,
+     close)
+
+
+htfMA = request.security(
+     syminfo.tickerid,
+     higherTF,
+     ta.sma(close, 50))
+
+
+var string htfBias = "NEUTRAL"
+
+
+
+if htfClose > htfMA
+
+    htfBias := "BULLISH"
+
+else if htfClose < htfMA
+
+    htfBias := "BEARISH"
+
+else
+
+    htfBias := "NEUTRAL"
+
+
+
+//================================================
+// MARKET SESSION ENGINE
+//================================================
+
+sessionTimezone = input.string(
+     "Etc/UTC",
+     "Session Timezone")
+
+
+
+sessionHour =
+     hour(
+          time,
+          sessionTimezone)
+
+
+
+var string marketSession =
+     "OFF HOURS"
+
+
+
+if sessionHour >= 0 and sessionHour < 8
+
+    marketSession := "ASIAN"
+
+
+else if sessionHour >= 8 and sessionHour < 13
+
+    marketSession := "LONDON"
+
+
+else if sessionHour >= 13 and sessionHour < 21
+
+    marketSession := "NEW YORK"
+
+
+else
+
+    marketSession := "OFF HOURS"
+
+
+
+//================================================
+// VOLATILITY ENGINE
+//================================================
+
+atrAverage =
+     ta.sma(
+          atr,
+          50)
+
+
+
+var string volatilityState =
+     "NORMAL"
+
+
+
+if atr > atrAverage * 1.5
+
+    volatilityState := "HIGH VOLATILITY"
+
+
+else if atr < atrAverage * 0.7
+
+    volatilityState := "LOW VOLATILITY"
+
+
+else
+
+    volatilityState := "NORMAL"
+
+
+
+//================================================
+// MARKET CONDITION ENGINE
+//================================================
+
+var string marketCondition =
+     "RANGING"
+
+
+
+if trendStrength == "STRONG BULLISH"
+
+    marketCondition := "BULLISH TREND"
+
+
+else if trendStrength == "STRONG BEARISH"
+
+    marketCondition := "BEARISH TREND"
+
+
+else if volatilityState == "LOW VOLATILITY"
+
+    marketCondition := "CONSOLIDATION"
+
+
+else
+
+    marketCondition := "RANGING"
+
+
+
+//================================================
+// INSTITUTIONAL SCORE ENGINE
+//================================================
+
+var int institutionalScore = 0
+
+
+institutionalScore := 0
+
+
+
+// Structure confirmation
+
+if bullishBOS or bearishBOS
+
+    institutionalScore += 20
+
+
+
+// CHoCH confirmation
+
+if bullishCHoCH or bearishCHoCH
+
+    institutionalScore += 20
+
+
+
+// Order Block confirmation
+
+if not na(bullishOBTop) or not na(bearishOBTop)
+
+    institutionalScore += 15
+
+
+
+// Fair Value Gap confirmation
+
+if bullishFVGStatus == "ACTIVE" or bearishFVGStatus == "ACTIVE"
+
+    institutionalScore += 15
+
+
+
+// Liquidity sweep confirmation
+
+if liquidityEvent == "BUY LIQUIDITY SWEPT" or liquidityEvent == "SELL LIQUIDITY SWEPT"
+
+    institutionalScore += 15
+
+
+
+// Higher timeframe alignment
+
+if marketBias == htfBias
+
+    institutionalScore += 15
+
+
+
+//================================================
+// AI CONFIDENCE ENGINE
+//================================================
+
+var string confidenceLevel =
+     "LOW"
+
+
+
+if institutionalScore >= 80
+
+    confidenceLevel := "VERY HIGH"
+
+
+else if institutionalScore >= 65
+
+    confidenceLevel := "HIGH"
+
+
+else if institutionalScore >= 45
+
+    confidenceLevel := "MEDIUM"
+
+
+else
+
+    confidenceLevel := "LOW"
+
+
+
+//================================================
+// TRADE READINESS ENGINE
+//================================================
+
+var string tradeStatus =
+     "WAIT"
+
+
+
+if institutionalScore >= 70 and marketBias == "BULLISH"
+
+    tradeStatus := "BUY READY"
+
+
+else if institutionalScore >= 70 and marketBias == "BEARISH"
+
+    tradeStatus := "SELL READY"
+
+
+else
+
+    tradeStatus := "WAIT"
+
+
+
+//================================================
+// AI MARKET SUMMARY
+//================================================
+
+var string aiSummary =
+     "WAIT FOR CONFIRMATION"
+
+
+
+if tradeStatus == "BUY READY"
+
+    aiSummary := "BULLISH CONDITIONS CONFIRMED"
+
+
+else if tradeStatus == "SELL READY"
+
+    aiSummary := "BEARISH CONDITIONS CONFIRMED"
+
+
+else
+
+    aiSummary := "NO HIGH QUALITY SETUP"
+    //================================================
+// PART D
+// AI TRADE EXECUTION ENGINE
+//================================================
+
+
+//================================================
+// RISK MANAGEMENT SETTINGS
+//================================================
+
+riskATRMultiplier = input.float(
+     1.5,
+     "Stop Loss ATR Multiplier",
+     minval = 0.5,
+     step = 0.1)
+
+
+rewardMultiplier = input.float(
+     2.0,
+     "Risk Reward Target",
+     minval = 1,
+     step = 0.5)
+
+
+showTradeLevels = input.bool(
+     true,
+     "Show AI Trade Signals")
+
+
+
+//================================================
+// TRADE MEMORY
+//================================================
+
+var float entryPrice = na
+
+var float stopLoss = na
+
+var float takeProfit = na
+
+var string tradeDirection =
+     "NONE"
+
+
+
+//================================================
+// BUY SETUP ENGINE
+//================================================
+
+buyCondition =
+     tradeStatus == "BUY READY"
+     and marketBias == "BULLISH"
+     and htfBias == "BULLISH"
+
+
+
+if buyCondition
+
+    entryPrice := close
+
+
+    stopLoss :=
+         close - (atr * riskATRMultiplier)
+
+
+    takeProfit :=
+         entryPrice +
+         ((entryPrice - stopLoss) * rewardMultiplier)
+
+
+    tradeDirection := "BUY"
+
+
+
+//================================================
+// SELL SETUP ENGINE
+//================================================
+
+sellCondition =
+     tradeStatus == "SELL READY"
+     and marketBias == "BEARISH"
+     and htfBias == "BEARISH"
+
+
+
+if sellCondition
+
+    entryPrice := close
+
+
+    stopLoss :=
+         close + (atr * riskATRMultiplier)
+
+
+    takeProfit :=
+         entryPrice -
+         ((stopLoss - entryPrice) * rewardMultiplier)
+
+
+    tradeDirection := "SELL"
+
+
+
+//================================================
+// RISK REWARD CALCULATION
+//================================================
+
+var float riskReward =
+     na
+
+
+
+if not na(entryPrice)
+
+    riskReward :=
+         math.abs(takeProfit - entryPrice) /
+         math.abs(entryPrice - stopLoss)
+
+
+
+//================================================
+// TRADE QUALITY ENGINE
+//================================================
+
+var string tradeQuality =
+     "LOW QUALITY"
+
+
+
+if institutionalScore >= 80
+
+    tradeQuality := "A+ SETUP"
+
+
+else if institutionalScore >= 65
+
+    tradeQuality := "GOOD SETUP"
+
+
+else if institutionalScore >= 45
+
+    tradeQuality := "AVERAGE SETUP"
+
+
+else
+
+    tradeQuality := "LOW QUALITY"
+
+
+
+//================================================
+// ENTRY LOCATION CONFIRMATION
+//================================================
+
+var string entryConfirmation =
+     "WAITING"
+
+
+
+if tradeDirection == "BUY"
+
+    if priceLocation == "DISCOUNT"
+
+        entryConfirmation := "BUY FROM DISCOUNT"
+
+    else
+
+        entryConfirmation := "BUY IN PREMIUM"
+
+
+
+else if tradeDirection == "SELL"
+
+    if priceLocation == "PREMIUM"
+
+        entryConfirmation := "SELL FROM PREMIUM"
+
+    else
+
+        entryConfirmation := "SELL IN DISCOUNT"
+
+
+
+else
+
+    entryConfirmation := "WAITING"
+
+
+
+//================================================
+// AI TRADE LABELS
+//================================================
+
+if showTradeLevels
+
+    if buyCondition
+
+        label.new(
+             bar_index,
+             low,
+             "AI BUY\nENTRY: " +
+             str.tostring(entryPrice, format.mintick),
+             style = label.style_label_up,
+             color = bullColor,
+             textcolor = textColor)
+
+
+
+    if sellCondition
+
+        label.new(
+             bar_index,
+             high,
+             "AI SELL\nENTRY: " +
+             str.tostring(entryPrice, format.mintick),
+             style = label.style_label_down,
+             color = bearColor,
+             textcolor = textColor)
+
+
+
+//================================================
+// POSITION STATUS
+//================================================
+
+var string riskStatus =
+     "NO TRADE"
+
+
+
+if not na(stopLoss) and not na(takeProfit)
+
+    riskStatus := "TRADE ACTIVE"
+
+
+else if not na(stopLoss)
+
+    riskStatus := "SL ACTIVE"
+
+
+else if not na(takeProfit)
+
+    riskStatus := "TP ACTIVE"
+
+
+
+//================================================
+// FINAL AI DECISION
+//================================================
+
+var string aiDecision =
+     "NO TRADE"
+
+
+
+if tradeQuality == "A+ SETUP"
+
+    if tradeDirection == "BUY"
+
+        aiDecision := "HIGH PROBABILITY BUY"
+
+
+    else if tradeDirection == "SELL"
+
+        aiDecision := "HIGH PROBABILITY SELL"
+
+
+
+else if tradeDirection == "BUY"
+
+    aiDecision := "BUY WITH CAUTION"
+
+
+
+else if tradeDirection == "SELL"
+
+    aiDecision := "SELL WITH CAUTION"
+
+
+
+else
+
+    aiDecision := "NO TRADE"
+   //================================================
+// PART E
+// PROFESSIONAL AI DASHBOARD v4.1
+//================================================
+
+
+//================================================
+// DASHBOARD SETTINGS
+//================================================
+
+dashboardPosition = input.string(
+     "TOP RIGHT",
+     "Dashboard Position",
+     options = [
+          "TOP RIGHT",
+          "TOP LEFT",
+          "BOTTOM RIGHT",
+          "BOTTOM LEFT"
+     ])
+
+
+showMiniDashboard = input.bool(
+     true,
+     "Show AI Dashboard")
+
+
+//================================================
+// DASHBOARD POSITION CONTROL
+//================================================
+
+dashboardPos =
+
+     dashboardPosition == "TOP LEFT" ?
+
+     position.top_left :
+
+     dashboardPosition == "BOTTOM RIGHT" ?
+
+     position.bottom_right :
+
+     dashboardPosition == "BOTTOM LEFT" ?
+
+     position.bottom_left :
+
+     position.top_right
+
+
+
+//================================================
+// DASHBOARD CREATION
+//================================================
+
+var table dashboard = table.new(
+
+     dashboardPos,
+
+     2,
+
+     17,
+
+     bgcolor = dashboardBG,
+
+     frame_color = dashboardHeader,
+
+     frame_width = 1)
+
+
+
+//================================================
+// DASHBOARD UPDATE
+//================================================
+
+if barstate.islast and showMiniDashboard
+
+
+
+    // HEADER
+
+    table.cell(
+         dashboard,
+         0,
+         0,
+         "LMI PRO v4.1",
+         bgcolor = dashboardHeader,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         0,
+         "AI ENGINE",
+         bgcolor = dashboardHeader,
+         text_color = textColor)
+
+
+
+    // AI DECISION
+
+    table.cell(
+         dashboard,
+         0,
+         1,
+         "DECISION",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         1,
+         aiDecision,
+
+         bgcolor =
+
+              aiDecision == "HIGH PROBABILITY BUY" ?
+
+              bullColor :
+
+              aiDecision == "HIGH PROBABILITY SELL" ?
+
+              bearColor :
+
+              aiDecision == "BUY WITH CAUTION" ?
+
+              color.orange :
+
+              aiDecision == "SELL WITH CAUTION" ?
+
+              color.orange :
+
+              neutralColor,
+
+         text_color = textColor)
+
+
+
+    // MARKET BIAS
+
+    table.cell(
+         dashboard,
+         0,
+         2,
+         "BIAS",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         2,
+         marketBias,
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+
+    // HTF BIAS
+
+    table.cell(
+         dashboard,
+         0,
+         3,
+         "HTF",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         3,
+         htfBias,
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+
+    // SCORE
+
+    table.cell(
+         dashboard,
+         0,
+         4,
+         "SCORE",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         4,
+         str.tostring(institutionalScore) + "/100",
+         bgcolor =
+
+              institutionalScore >= 80 ?
+
+              bullColor :
+
+              institutionalScore >= 50 ?
+
+              color.orange :
+
+              bearColor,
+
+         text_color = textColor)
+
+
+
+    // CONFIDENCE
+
+    table.cell(
+         dashboard,
+         0,
+         5,
+         "CONFIDENCE",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         5,
+         confidenceLevel,
+
+         bgcolor =
+
+              confidenceLevel == "VERY HIGH" ?
+
+              color.green :
+
+              confidenceLevel == "HIGH" ?
+
+              bullColor :
+
+              confidenceLevel == "MEDIUM" ?
+
+              color.orange :
+
+              color.gray,
+
+         text_color = textColor)
+
+
+
+    // QUALITY
+
+    table.cell(
+         dashboard,
+         0,
+         6,
+         "QUALITY",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         6,
+         tradeQuality,
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+
+    // ENTRY
+
+    table.cell(
+         dashboard,
+         0,
+         7,
+         "ENTRY",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         7,
+         na(entryPrice) ? "NONE" : str.tostring(entryPrice),
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+
+    // STOP LOSS
+
+    table.cell(
+         dashboard,
+         0,
+         8,
+         "SL",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         8,
+         na(stopLoss) ? "NONE" : str.tostring(stopLoss),
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+
+    // TAKE PROFIT
+
+    table.cell(
+         dashboard,
+         0,
+         9,
+         "TP",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         9,
+         na(takeProfit) ? "NONE" : str.tostring(takeProfit),
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+
+    // SESSION
+
+    table.cell(
+         dashboard,
+         0,
+         10,
+         "SESSION",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         10,
+         marketSession,
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+
+    // RISK REWARD
+
+    table.cell(
+         dashboard,
+         0,
+         11,
+         "RR",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         11,
+         na(riskReward) ? "NONE" : str.tostring(riskReward),
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+
+    // MARKET CONDITION
+
+    table.cell(
+         dashboard,
+         0,
+         12,
+         "CONDITION",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         12,
+         marketCondition,
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+
+    // VOLATILITY
+
+    table.cell(
+         dashboard,
+         0,
+         13,
+         "VOLATILITY",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         13,
+         volatilityState,
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+
+    // LIQUIDITY
+
+    table.cell(
+         dashboard,
+         0,
+         14,
+         "LIQUIDITY",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         14,
+         liquidityEvent,
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+
+    // AI SUMMARY
+
+    table.cell(
+         dashboard,
+         0,
+         15,
+         "AI SUMMARY",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         15,
+         aiSummary,
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+
+    // VERSION
+
+    table.cell(
+         dashboard,
+         0,
+         16,
+         "VERSION",
+         bgcolor = dashboardBG,
+         text_color = textColor)
+
+
+    table.cell(
+         dashboard,
+         1,
+         16,
+         "v4.1",
+         bgcolor = dashboardBG,
+         text_color = textColor)
